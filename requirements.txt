@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+gunicorn
+openai>=1.59.4
+ffmpeg-python
+python-multipart
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+requests
