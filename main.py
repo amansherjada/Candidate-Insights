@@ -75,15 +75,26 @@ def split_audio(mp3_path, chunk_duration=600):
     output_dir = tempfile.mkdtemp()
     output_pattern = os.path.join(output_dir, "chunk_%03d.mp3")
 
-    subprocess.run([
-        "ffmpeg", "-i", mp3_path,
-        "-f", "segment",
-        "-segment_time", str(chunk_duration),
-        "-c", "copy",
-        output_pattern
-    ], check=True)
+    try:
+        subprocess.run([
+            "ffmpeg", "-i", mp3_path,
+            "-f", "segment",
+            "-segment_time", str(chunk_duration),
+            "-ar", "16000",       # Sample rate for Whisper
+            "-ac", "1",           # Mono channel
+            "-vn",                # No video
+            "-codec:a", "libmp3lame",  # Re-encode audio to MP3
+            output_pattern
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error("❌ FFmpeg splitting failed")
+        raise RuntimeError(str(e))
 
-    return sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith(".mp3")])
+    return sorted([
+        os.path.join(output_dir, f)
+        for f in os.listdir(output_dir)
+        if f.endswith(".mp3")
+    ])
 
 def transcribe_audio(mp3_path):
     chunks = split_audio(mp3_path)
