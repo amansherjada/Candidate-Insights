@@ -10,6 +10,7 @@ import re
 import requests
 import tempfile
 import logging
+import subprocess
 
 # === Logging ===
 logging.basicConfig(level=logging.INFO)
@@ -69,16 +70,37 @@ def download_mp3_from_drive(file_id):
 
     return mp3_path
 
+def split_audio(mp3_path, chunk_duration=600):
+    logging.info("🔪 Splitting audio into chunks...")
+    output_dir = tempfile.mkdtemp()
+    output_pattern = os.path.join(output_dir, "chunk_%03d.mp3")
+
+    subprocess.run([
+        "ffmpeg", "-i", mp3_path,
+        "-f", "segment",
+        "-segment_time", str(chunk_duration),
+        "-c", "copy",
+        output_pattern
+    ], check=True)
+
+    return sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith(".mp3")])
+
 def transcribe_audio(mp3_path):
-    logging.info("🧠 Transcribing audio...")
-    with open(mp3_path, "rb") as file:
-        result = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=file,
-            response_format="text",
-            language="en"
-        )
-    return clean_transcript(result)
+    chunks = split_audio(mp3_path)
+    full_transcript = []
+
+    for idx, chunk_path in enumerate(chunks):
+        logging.info(f"🎧 Transcribing chunk {idx + 1}/{len(chunks)}: {chunk_path}")
+        with open(chunk_path, "rb") as file:
+            result = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=file,
+                response_format="text",
+                language="en"
+            )
+        full_transcript.append(clean_transcript(result))
+
+    return "\n\n".join(full_transcript)
 
 def generate_llm_report(prompt, transcript):
     logging.info("📝 Generating LLM report...")
